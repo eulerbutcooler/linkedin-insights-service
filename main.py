@@ -4,6 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+from app.core.middleware import RequestIdMiddleware
 
 configure_logging()
 logger=get_logger(__name__)
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI):
 
 
 app=FastAPI(lifespan=lifespan)
+app.add_middleware(RequestIdMiddleware)
 
 @app.get("/healthz")
 async def healthz():
