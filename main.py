@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from motor.motor_asyncio import AsyncIOMotorClient
-
+from app.db.indexes import ensure_indexes
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import RequestIdMiddleware
@@ -17,6 +17,8 @@ async def lifespan(app: FastAPI):
     try:
            await app.state.db.command("ping")
            logger.info("mongo.connected", mongo_url=settings.mongo_url)
+           await ensure_indexes(app.state.db)
+           logger.info("indexes.ready")
     except Exception as exc:
            logger.error("mongo.unreachable", mongo_url=settings.mongo_url, error=str(exc))
 
