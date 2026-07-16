@@ -1,8 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
-
 from app.db.post import CommentDocument, PostDocument
 from app.repositories.base import find_keyset
-
+from app.db.person import PersonDocument
 
 class PostRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
@@ -67,3 +66,33 @@ class CommentRepository:
             cursor=cursor,
         )
         return [CommentDocument.model_validate(d) for d in docs], next_cursor
+
+class PersonRepository:
+    def __init__(self, db: AsyncIOMotorDatabase):
+        self._collection = db["people"]
+
+    async def upsert(self, person: PersonDocument) -> PersonDocument:
+        update_data = person.model_dump()
+        update_data.pop("_id", None)
+        result = await self._collection.find_one_and_update(
+            {"person_id": person.person_id},
+            {"$set": update_data},
+            upsert=True,
+            return_document=True,
+        )
+        return PersonDocument.model_validate(result)
+
+    async def find_for_page(
+        self,
+        page_id: str,
+        cursor: str | None = None,
+        size: int = 25,
+    ) -> tuple[list[PersonDocument], str | None]:
+        docs, next_cursor = await find_keyset(
+            collection=self._collection,
+            filter_doc={"page_id": page_id},
+            sort_spec=[("_id", -1)],
+            size=size,
+            cursor=cursor,
+        )
+        return [PersonDocument.model_validate(d) for d in docs], next_cursor

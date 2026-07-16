@@ -9,7 +9,7 @@ class PageDocument(BaseModel):
     name:str
     tagline: str | None = None
     industry: str | None = None
-    followers: int | None = None
+    total_followers: int | None = None
     logo_url: str | None = None
     description: str | None = None
     website: str | None = None
@@ -25,7 +25,7 @@ def raw_page_to_document(raw:RawPage)->PageDocument:
         name=raw.name or "Unknown",
         tagline=raw.tagline,
         industry=raw.industry,
-        followers=raw.followers,
+        total_followers=raw.followers,
         logo_url=raw.logo_url,
         description=raw.description,
         website=raw.website,
