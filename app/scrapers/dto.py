@@ -36,3 +36,13 @@ class RawComment:
     author_name: str | None = None
     author_url: str | None = None
     likes: int | None = None
+
+@dataclass
+class RawPerson:
+    person_id: str
+    name: str | None = None
+    title: str | None = None
+    profile_url: str | None = None
+    profile_pic_url: str | None = None
+    location: str | None = None
+    followers: int | None = None

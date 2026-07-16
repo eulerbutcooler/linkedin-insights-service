@@ -1,11 +1,12 @@
 from typing import Any
 import httpx
 
-from app.scrapers.dto import RawComment, RawPage, RawPost
+from app.scrapers.dto import RawComment, RawPage, RawPost, RawPerson
 
 APIFY_BASE="https://api.apify.com/v2"
 COMPANY_ACTOR_ID = "harvestapi~linkedin-company"
 POSTS_ACTOR_ID = "harvestapi~linkedin-profile-posts"
+EMPLOYEES_ACTOR_ID = "harvestapi~linkedin-company-employees"
 
 class ApifyClient:
     def __init__(self, api_token: str, timeout: float = 120.0):
@@ -142,4 +143,42 @@ class ApifyClient:
             author_name=actor.get("name"),
             author_url=actor.get("linkedinUrl"),
             likes=engagement.get("likes"),
+        )
+
+    async def fetch_employees(
+        self,
+        linkedin_id: str,
+        max_employees: int = 25,
+    ) -> list[RawPerson]:
+        company_url = f"https://www.linkedin.com/company/{linkedin_id}/"
+        run_input: dict[str, Any] = {
+            "companies": [company_url],
+            "maxItems": max_employees,
+            "recentlyChangedJobs": False,
+        }
+        items = await self._run_actor_sync(EMPLOYEES_ACTOR_ID, run_input)
+        return [self._map_person(item) for item in items]
+
+    @staticmethod
+    def _map_person(item: dict[str, Any]) -> RawPerson:
+        location = item.get("location") or {}
+        if isinstance(location, dict):
+            location_text = location.get("linkedinText") or (location.get("parsed") or {}).get("text")
+        else:
+            location_text = location
+
+        name = None
+        first = item.get("firstName")
+        last = item.get("lastName")
+        if first or last:
+            name = f"{first or ''} {last or ''}".strip()
+
+        return RawPerson(
+            person_id=str(item.get("id") or item.get("publicIdentifier") or ""),
+            name=name or item.get("fullName"),
+            title=item.get("headline"),
+            profile_url=item.get("linkedinUrl"),
+            profile_pic_url=None,
+            location=location_text,
+            followers=item.get("followerCount"),
         )
