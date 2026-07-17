@@ -1,3 +1,4 @@
+import re
 from app.core.exceptions import ScrapeError
 from app.db.page import raw_page_to_document
 from app.db.post import raw_comment_to_document, raw_post_to_document
@@ -46,7 +47,8 @@ class PageService:
         if name:
             filter_doc["$text"] = {"$search": name}
         if industry:
-            filter_doc["industry"] = industry
+            filter_doc["industry"] = {"$regex": re.escape(industry), "$options": "i"}
+
         fol: dict = {}
         if followers_min is not None:
             fol["$gte"] = followers_min
