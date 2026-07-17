@@ -98,7 +98,7 @@ and threaded through every log line for that request, so you can grep \
 }
 ```
 
-3. Import `postman/openapi.json` in Postman. \
+3. Import `postman/Postman_collection.json` in Postman. \
 Set baseurl = http://localhost:8000
 
 ---
