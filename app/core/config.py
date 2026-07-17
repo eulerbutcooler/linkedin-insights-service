@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     apify_api_token: str | None = None
     redis_url: str | None = None
     cache_ttl_seconds: int = 300
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-3.1-flash-lite"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 _settings: Settings | None = None

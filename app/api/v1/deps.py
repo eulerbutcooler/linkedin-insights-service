@@ -5,6 +5,7 @@ from app.repositories.page import PageRepository
 from app.repositories.post import CommentRepository, PostRepository, PersonRepository
 from app.scrapers.apify_client import ApifyClient
 from app.services.page_service import PageService
+from app.services.summary_service import SummaryService
 
 def get_cache(request: Request)->Cache:
     return request.app.state.cache
@@ -39,3 +40,14 @@ def get_page_service(
     apify=Depends(get_apify_client),
 ) -> PageService:
     return PageService(page_repo, post_repo, comment_repo, person_repo, apify)
+
+
+def get_summary_service(
+    request: Request,
+    post_repo=Depends(get_post_repo),
+    cache=Depends(get_cache),
+) -> SummaryService | None:
+    llm = request.app.state.llm
+    if llm is None:
+        return None
+    return SummaryService(llm, post_repo, cache)

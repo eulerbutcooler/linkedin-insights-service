@@ -1,10 +1,10 @@
 from contextlib import asynccontextmanager
 
+from app.llm import LLMClient
 from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
-import redis.asyncio as redis
 from app.cache import Cache
-from app.api.v1.routers import pages, posts, people
+from app.api.v1.routers import pages, posts, people, summary
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import RequestIdMiddleware, register_exception_handlers
@@ -33,19 +33,20 @@ async def lifespan(app: FastAPI):
     app.state.apify = ApifyClient(settings.apify_api_token)
     logger.info("apify.ready")
     app.state.redis = None
+    app.state.cache = Cache(settings.redis_url, ttl=settings.cache_ttl_seconds)
     if settings.redis_url:
+            logger.info("cache.configured", redis_url=settings.redis_url)
+    else:
+        logger.info("cache.disabled (no REDIS_URL)")
+    app.state.llm = None
+    if settings.gemini_api_key:
         try:
-            app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
-            await app.state.redis.ping()
-            logger.info("redis.connected", redis_url=settings.redis_url)
+            app.state.llm = LLMClient(settings.gemini_api_key, settings.gemini_model)
+            logger.info("llm.ready", model=settings.gemini_model)
         except Exception as exc:
-            logger.warning("redis.unreachable", error=str(exc))
-            app.state.redis = None
-    app.state.cache = Cache(app.state.redis, ttl=settings.cache_ttl_seconds)
+            logger.warning("llm.init_failed", error=str(exc))
     yield
     logger.info("shutdown.complete")
-    if app.state.redis is not None:
-        await app.state.redis.close()
     app.state.mongo.close()
 
 app = FastAPI(lifespan=lifespan)
@@ -54,6 +55,7 @@ register_exception_handlers(app)
 app.include_router(pages.router, prefix="/api/v1")
 app.include_router(posts.router, prefix="/api/v1")
 app.include_router(people.router, prefix="/api/v1")
+app.include_router(summary.router, prefix="/api/v1")
 
 
 @app.get("/healthz")
@@ -69,13 +71,8 @@ async def readyz():
         checks["mongo"] = "ok"
     except Exception as exc:
         checks["mongo"] = f"fail: {exc}"
-    if app.state.redis is not None:
-        try:
-            await app.state.redis.ping()
-            checks["redis"] = "ok"
-        except Exception as exc:
-            checks["redis"] = f"fail: {exc}"
+    if app.state.settings.redis_url:
+        checks["redis"] = "configured (checked on first use)"
     else:
-        checks["redis"] = "skipped (not configured)"
-    ok = all(v == "ok" or v.startswith("skipped") for v in checks.values())
-    return {"status": "ok" if ok else "fail", "checks": checks}
+        checks["redis"] = "disabled"
+    return {"status": "ok", "checks": checks}

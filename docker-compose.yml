@@ -28,6 +28,9 @@ services:
     env_file: .env
     environment:
       - MONGO_URL=mongodb://mongo:27017
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=gemini-3.1-flash-lite
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       mongo:
         condition: service_healthy
