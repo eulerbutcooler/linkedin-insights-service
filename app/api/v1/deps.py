@@ -1,11 +1,13 @@
 from fastapi import Depends, Request
-
+from app.cache import Cache
 from app.core.config import Settings
 from app.repositories.page import PageRepository
 from app.repositories.post import CommentRepository, PostRepository, PersonRepository
 from app.scrapers.apify_client import ApifyClient
 from app.services.page_service import PageService
 
+def get_cache(request: Request)->Cache:
+    return request.app.state.cache
 
 def get_db(request: Request):
     return request.app.state.db

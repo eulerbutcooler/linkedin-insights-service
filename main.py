@@ -2,7 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from motor.motor_asyncio import AsyncIOMotorClient
-
+import redis.asyncio as redis
+from app.cache import Cache
 from app.api.v1.routers import pages, posts, people
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
@@ -31,10 +32,21 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("APIFY_API_TOKEN is not configured")
     app.state.apify = ApifyClient(settings.apify_api_token)
     logger.info("apify.ready")
+    app.state.redis = None
+    if settings.redis_url:
+        try:
+            app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
+            await app.state.redis.ping()
+            logger.info("redis.connected", redis_url=settings.redis_url)
+        except Exception as exc:
+            logger.warning("redis.unreachable", error=str(exc))
+            app.state.redis = None
+    app.state.cache = Cache(app.state.redis, ttl=settings.cache_ttl_seconds)
     yield
     logger.info("shutdown.complete")
+    if app.state.redis is not None:
+        await app.state.redis.close()
     app.state.mongo.close()
-
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(RequestIdMiddleware)
@@ -51,8 +63,19 @@ async def healthz():
 
 @app.get("/readyz")
 async def readyz():
+    checks: dict = {}
     try:
         await app.state.db.command("ping")
-        return {"status": "ok", "checks": {"mongo": "ok"}}
+        checks["mongo"] = "ok"
     except Exception as exc:
-        return {"status": "fail", "checks": {"mongo": f"fail: {exc}"}}
+        checks["mongo"] = f"fail: {exc}"
+    if app.state.redis is not None:
+        try:
+            await app.state.redis.ping()
+            checks["redis"] = "ok"
+        except Exception as exc:
+            checks["redis"] = f"fail: {exc}"
+    else:
+        checks["redis"] = "skipped (not configured)"
+    ok = all(v == "ok" or v.startswith("skipped") for v in checks.values())
+    return {"status": "ok" if ok else "fail", "checks": checks}
